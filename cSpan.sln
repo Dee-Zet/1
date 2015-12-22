@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 14
 VisualStudioVersion = 14.0.23107.0
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "cSpan", "ConsoleApplication1\cSpan.csproj", "{0B67BB84-A895-4301-B58E-17F887673D3D}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "cSpan", "cSpan\cSpan.csproj", "{0B67BB84-A895-4301-B58E-17F887673D3D}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
