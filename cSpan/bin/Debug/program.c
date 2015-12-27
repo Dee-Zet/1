@@ -4,8 +4,6 @@
 const double pi=0.3989422804014;
 int N;
 
-string str = "sdokgosdj";
-
 double I(double x, double eps)
 {
    double t=x, sum=t, x2=x*x, s=0;

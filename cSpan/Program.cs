@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text.RegularExpressions;
 
 public class Example
@@ -59,13 +60,26 @@ public class Example
         }
     }
 
-    public static void countSpan(string codeLine, List<string> names, List<int> counters)
+    public static void countSpan(string codeLine, List<string> globalNames, List<int> globalCounters, List<string> localNames, List<int> localCounters, int bracketsCounter)
     {
-        foreach (string name in names)
+        List<string> tempGlobalNames = new List<string>();
+        tempGlobalNames = globalNames.ToList();
+        foreach (string localName in localNames) 
+            if (tempGlobalNames.IndexOf(localName) >= 0)
+                tempGlobalNames.Remove(localName);
+
+        foreach (string localName in localNames)
         {
-            string searchPattern = @"\b" + name + @"\b";
+            string searchPattern = @"\b" + localName + @"\b";
             foreach (Match match in Regex.Matches(codeLine, searchPattern, RegexOptions.None))
-                ++counters[names.IndexOf(name)];
+                ++localCounters[localNames.IndexOf(localName)];
+        }
+
+        foreach (string globalName in tempGlobalNames)
+        {
+            string searchPattern = @"\b" + globalName + @"\b";
+            foreach (Match match in Regex.Matches(codeLine, searchPattern, RegexOptions.None))
+                ++globalCounters[globalNames.IndexOf(globalName)];
         }
     }
 
@@ -79,28 +93,23 @@ public class Example
     public static void prepareFile(string fileName)
     {
         System.IO.StreamReader file = new System.IO.StreamReader(fileName);
+        string stringSearchPattern = "\"[\\s\\S]*?\"";
+        string commentSearchPattern = @"/\*[\s\S]*?\*/";
         string codeFile = file.ReadToEnd();
         file.Close();
-        string stringSearchPattern = "\"[^\"]*\"";
+        
         string replacement = "\"\"";
         Regex rgx = new Regex(stringSearchPattern);
         codeFile = rgx.Replace(codeFile, replacement);
-        stringSearchPattern = @"/\*[\S\s]*\*/";
+
         replacement = @" ";
-        rgx = new Regex(stringSearchPattern);
-        codeFile = rgx.Replace(codeFile, replacement);
-        stringSearchPattern = "//[^\n]*";
-        replacement = "\r";
-        rgx = new Regex(stringSearchPattern);
+        rgx = new Regex(commentSearchPattern);
         codeFile = rgx.Replace(codeFile, replacement);
 
-        /*stringSearchPattern = "\r\n[^;]*\r\n";
-        foreach (Match match in Regex.Matches(codeFile, stringSearchPattern, RegexOptions.None))
-        {
-            replacement = match.Value.Substring(0, match.Value.Length - 2);
-            rgx = new Regex(match.Value);
-            codeFile = rgx.Replace(codeFile, replacement);
-        }*/
+        commentSearchPattern = "//[^\n]*";
+        replacement = "\r";
+        rgx = new Regex(commentSearchPattern);
+        codeFile = rgx.Replace(codeFile, replacement);
 
         System.IO.File.WriteAllText(fileName + @"~", codeFile);
     }
@@ -114,9 +123,11 @@ public class Example
         List<int> globalCounters = new List<int>();
         List<string> localNames = new List<string>();
         List<int> localCounters = new List<int>();
-        string types = @"\s*(int|signed|unsigned|short|long|char|float|double)\s+";
+        string types = @"\s*(void|int|signed|unsigned|short|long|char|float|double)\s+";
         string typeDeclaration = types + @"(?!" + types + @")" + lexeme + @"(?!(\s*\())";
+        string procedureDeclaration = types + @"(?!" + types + @")" + lexeme + @"\s*\(";
         string fileName = fileChoseDialog();
+        bool procedureDeclarationFlag = false;
         if (fileName != null)
         {
             prepareFile(fileName);
@@ -130,6 +141,19 @@ public class Example
                 {
                     types = addType(types, lastWord(typeMatch.Value));
                     typeDeclaration = types + @"(?!" + types + @")" + lexeme + @"(?!(\s*\())";
+                }
+                Match procedureMatch = Regex.Match(codeLine, procedureDeclaration, RegexOptions.None);
+                if (procedureMatch.Success)
+                {
+                    Console.WriteLine(procedureMatch.Value.Substring(0, procedureMatch.Value.Length - 1));
+                    foreach (Match match in Regex.Matches(codeLine, typeDeclaration, RegexOptions.None))
+                        if (bracketCounter == 0)
+                        {
+                            addDeclaration(lastWord(match.Value), localNames, localCounters);
+                            countInitialization(codeLine, lastWord(match.Value), localNames, localCounters);
+                            findCommaDeclarations(codeLine, lastWord(match.Value), types, localNames, localCounters);
+                            procedureDeclarationFlag = true;
+                        }
                 }
                 else
                     foreach (Match match in Regex.Matches(codeLine, typeDeclaration, RegexOptions.None))
@@ -145,16 +169,23 @@ public class Example
                             countInitialization(codeLine, lastWord(match.Value), localNames, localCounters);
                             findCommaDeclarations(codeLine, lastWord(match.Value), types, localNames, localCounters);
                         }
-                if (bracketCounter == 0)
-                    countSpan(codeLine, globalNames, globalCounters);
-                else
-                    countSpan(codeLine, localNames, localCounters);
+                countSpan(codeLine, globalNames, globalCounters, localNames, localCounters, bracketCounter);
                 if (codeLine.Contains("}"))
                     bracketCounter--;
-                //countSpan(codeLine, localNames, localCounters);
+                if (bracketCounter == 0)
+                {
+                    if (!procedureDeclarationFlag)
+                    {
+                        output(localNames, localCounters);
+                        localNames.Clear();
+                        localCounters.Clear();
+                    }
+                    else
+                        procedureDeclarationFlag = false;
+                }
             }
+            Console.WriteLine("\r\nГлобальные переменные");
             output(globalNames, globalCounters);
-            output(localNames, localCounters);
             file.Close();
         }
         else
